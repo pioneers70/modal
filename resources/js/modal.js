@@ -1,10 +1,11 @@
+// Rearn the original function. Adding custom sizes when calling a modal window
 window.LivewireUIModal = () => {
     return {
         show: false,
         showActiveComponent: true,
         activeComponent: false,
         componentHistory: [],
-        modalWidth: null ,
+        modalWidth: null,
         listeners: [],
         getActiveComponentModalAttribute(key) {
             if (this.$wire.get('components')[this.activeComponent] !== undefined) {
@@ -96,9 +97,17 @@ window.LivewireUIModal = () => {
             let focusableTimeout = 50;
 
             if (this.activeComponent === false) {
-                this.activeComponent = id
+                this.activeComponent = id;
                 this.showActiveComponent = true;
-                this.modalWidth = this.getActiveComponentModalAttribute('maxWidthClass');
+
+                // We check the availability of user size in the Openmodal event
+                const customSize = this.getCustomModalSize();
+                if (customSize) {
+                    this.modalWidth = customSize;
+                } else {
+                    // Используем стандартный размер из атрибутов компонента
+                    this.modalWidth = this.getActiveComponentModalAttribute('maxWidthClass');
+                }
             } else {
                 this.showActiveComponent = false;
 
@@ -107,7 +116,15 @@ window.LivewireUIModal = () => {
                 setTimeout(() => {
                     this.activeComponent = id;
                     this.showActiveComponent = true;
-                    this.modalWidth = this.getActiveComponentModalAttribute('maxWidthClass');
+
+                    // We check the availability of user size in the Openmodal event
+                    const customSize = this.getCustomModalSize();
+                    if (customSize) {
+                        this.modalWidth = customSize;
+                    } else {
+                        // Используем стандартный размер из атрибутов компонента
+                        this.modalWidth = this.getActiveComponentModalAttribute('maxWidthClass');
+                    }
                 }, 300);
             }
 
@@ -119,6 +136,15 @@ window.LivewireUIModal = () => {
                     }, focusableTimeout);
                 }
             });
+        },
+        // New method for obtaining a user size of a modal window
+        getCustomModalSize() {
+            if (window.livewireUILastEvent &&
+                window.livewireUILastEvent.detail &&
+                window.livewireUILastEvent.detail.modalSize) {
+                return window.livewireUILastEvent.detail.modalSize;
+            }
+            return null;
         },
         focusables() {
             let selector = 'a, button, input:not([type=\'hidden\']), textarea, select, details, [tabindex]:not([tabindex=\'-1\'])'
@@ -155,11 +181,20 @@ window.LivewireUIModal = () => {
                 setTimeout(() => {
                     this.activeComponent = false;
                     this.$wire.resetState();
+                    this.modalWidth = null; // Brave the size when closing
                 }, 300);
             }
         },
         init() {
             this.modalWidth = this.getActiveComponentModalAttribute('maxWidthClass');
+
+            // Add the OpenModal event processor to save data on the size
+            this.listeners.push(
+                window.addEventListener('openModal', (event) => {
+                    // We save the event to access the parameters
+                    window.livewireUILastEvent = event;
+                })
+            );
 
             this.listeners.push(
                 Livewire.on('closeModal', (data) => {
@@ -175,8 +210,12 @@ window.LivewireUIModal = () => {
         },
         destroy() {
             this.listeners.forEach((listener) => {
-                listener();
+                if (typeof listener === 'function') {
+                    listener();
+                }
             });
+            // Clean the saved event when the component is destroyed
+            window.livewireUILastEvent = null;
         }
     };
 }
